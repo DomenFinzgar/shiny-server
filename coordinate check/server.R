@@ -9,26 +9,25 @@ library(ggplot2)
 library(hrbrthemes)
 library(mapview)
 library(stringr)
-suppressPackageStartupMessages(library(ggiraph))
+library(ggiraph)
+library(ggthemes)
 
-#marjana_in<-
-#head(t(marjana_in))
+#library(ggthemes)
 
-#marjana_out <-  t(na.locf(t(marjana_in), fromLast=F))
 
-#head(data.table(marjana.out))
+diversity_measures <- as.data.table(read.csv("www/diversity_measures_all_markers.csv", header=T, sep = ";", encoding="UTF-8"))
+frequency_measures <- as.data.table(read.csv("www/frequency_measures.csv", header=T, sep = ";", encoding="UTF-8") )
+populations_datasets <- as.data.table(read.csv("www/populations_datasets_review.csv", header=T, sep = ",", encoding="UTF-8")) 
+projects_datasets <- as.data.table(read.csv("www/projects_datasets.csv", header=T, sep = ";", encoding="UTF-8") )
+genotypic_measures<-as.data.table(read.csv("www/genotypic_measures.csv", header=T, sep = ";", encoding="UTF-8") )
+euforgen_members<-as.data.table(read.csv("www/euforgen_member.csv", header=T, sep = ";", encoding="UTF-8") )
+
 
 shinyServer(function(input, output) {
   
   output$plot <- renderggiraph({
     
-    diversity_measures <- as.data.table(read.csv("diversity_measures_all_markers.csv", header=T, sep = ";", encoding="UTF-8"))
-    frequency_measures <- as.data.table(read.csv("frequency_measures.csv", header=T, sep = ";", encoding="UTF-8") )
-    populations_datasets <- as.data.table(read.csv("populations_datasets_review.csv", header=T, sep = ",", encoding="UTF-8")) 
-    projects_datasets <- as.data.table(read.csv("projects_datasets.csv", header=T, sep = ";", encoding="UTF-8") )
-    genotypic_measures<-as.data.table(read.csv("genotypic_measures.csv", header=T, sep = ";", encoding="UTF-8") )
-    euforgen_members<-as.data.table(read.csv("euforgen_member.csv", header=T, sep = ";", encoding="UTF-8") )
-    
+
     #########
     #add projects_datasets
     diversity_measures<-merge(diversity_measures,projects_datasets, by="dataset_name")
@@ -55,8 +54,7 @@ shinyServer(function(input, output) {
     # Let's add a unique ID column to our data.
     europe@data$id <- row.names(europe@data)
     
-    #merge additional data (20.7.2017 - EUFORGEN)
-    europe@data<-merge(europe@data,euforgen_members, by="name_long")
+
     
     # A bounding box for continental Europe.
     europe.bbox <- SpatialPolygons(list(Polygons(list(Polygon(
@@ -65,6 +63,9 @@ shinyServer(function(input, output) {
     # Get polygons that are only in continental Europe.
     europe.clipped <-
       rgeos::gIntersection(europe, europe.bbox, byid = TRUE, id=europe$id)
+    
+    #merge additional data (20.7.2017 - EUFORGEN)
+    europe@data<-merge(europe@data,euforgen_members, by="name_long")  
     #GGPLOT REQUIRES TIDY data!
     europe.tidy <- broom::tidy(europe.clipped)
     europe.tidy <- dplyr::left_join(europe.tidy, europe@data, by='id')
@@ -122,7 +123,7 @@ shinyServer(function(input, output) {
     #####
     #Make a country switch
     populations_datasets_EUROPE<-
-      populations_datasets_EUROPE[populations_datasets_EUROPE$country=='Slovenia']
+      populations_datasets_EUROPE[populations_datasets_EUROPE$country==input$country]
     
     
     #populations_datasets_EUROPE<-
@@ -137,22 +138,22 @@ shinyServer(function(input, output) {
     EU_nondup<-populations_datasets_EUROPE[!duplicated(populations_datasets_EUROPE),]
     
     a<-ggplot()+
-      geom_polygon_interactive(data=europe.tidy, alpha=0.8,color='black', 
+      geom_polygon_interactive(data=europe.tidy, alpha=0.8,color='black', size=0.1,
                                aes(long, lat, group=group, fill=member_of_EUFORGEN,
                                    tooltip=sprintf("%s<br/>%s",iso_a3,remarks_EUFORGEN))) +
-      coord_map("azequalarea") +
-      hrbrthemes::theme_ipsum_rc() +
+      coord_map("azequidistant") +
       #viridis::scale_fill_viridis(
-      #name='Median GDP \n(in Billions)', direction = -1, labels=scales::dollar) +
+      #name='Median GDP \n(in Billions)', direction = -1) +
+      theme_map()+
       labs(x=NULL, y=NULL, 
-           title='Members of EUFORGEN \nContinental Europe & Iceland',
+           title='Members of EUFORGEN Continental Europe & Iceland',
            caption='Source: EVOLTREE GD^2 database and \nhttp://www.euforgen.org/member-countries/')+
-      geom_point_interactive(data=EU_nondup, 
+      geom_point_interactive(data=EU_nondup, pch=21,lwd=1,
                              aes(x=longitude, y=latitude, 
                                  tooltip=sprintf("%s<br/>%s",
                                                  country,
-                                                 dataset_name)), color="red")
-    ggiraph(code=print(a))
+                                                 dataset_name)), fill="white")
+    ggiraph(code={print(a)}, zoom_max=6, hover_css="fill:black;")
     
   })
 
